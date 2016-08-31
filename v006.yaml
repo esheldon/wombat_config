@@ -146,14 +146,14 @@ output:
 
     dir: 
         type: FormattedStr
-        format: "%s/%s"
+        format: "%s/%s/output"
         items:
         - *WOMBAT_DIR
         - *run
 
     file_name:
         type: FormattedStr
-        format: "sim-%s-%06d.fits"
+        format: "wombat-%s-%06d.fits"
         items:
         - *run
         - { type: Sequence, nitems: '@output.nfiles' }
@@ -169,7 +169,7 @@ output:
     truth:
         file_name :
             type: FormattedStr
-            format: "truth-catalog-%s-%06d.fits"
+            format: "wombat-truth-%s-%06d.fits"
             items:
             - *run
             - { type: Sequence, nitems: '@output.nfiles' }
