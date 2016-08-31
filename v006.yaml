@@ -1,0 +1,206 @@
+
+# This simulation is designed to test WCS conventions.
+#
+# The galaxies are all round.
+#
+# For the psf, we use an ellitpical Kolmogorov with a random shape with non-zero mean
+#
+# For the wcs, we use a TAN projection of a non-very-square Jacobian that is different for 
+# each file.
+#
+# The applied shear is different for each file, also with non-zero mean.
+#
+# The output files are MEDS files using the new psf extension to store images of the 
+# PSF, so no interpolation is necessary.
+
+some_variables :
+    - &run v006
+    - &WOMBAT_DIR $os.environ['WOMBAT_DIR']
+
+run: *run
+
+modules:
+    - galsim.des
+    - galsim_extra.gmixnd
+
+psf:
+    type: Moffat
+    beta: 3.5
+    fwhm: 0.9
+
+    ellip:
+        type: G1G2
+        g1:
+            type: RandomGaussian
+            mean: 0.007
+            sigma: 0.018
+        g2:
+            type: RandomGaussian
+            mean: 0.007
+            sigma: 0.018
+
+gal:
+    type: Exponential
+
+    # draw from realistic distributions
+
+    # from great3 rgc
+    half_light_radius:
+        type: GMixND
+        islog10: True
+        weights: [ 0.25936905,  0.21771955,  0.06283213,  0.27101516,  0.18906411]
+        means: [[ 0.24320888], [ 0.1249546 ], [ 0.48581222], [ 0.17535828], [ 0.33216468]]
+        covars: [[[ 0.01449311]], [[ 0.00784546]], [[ 0.03658037]], [[ 0.01103756]], [[ 0.0151037 ]]]
+
+    # matches des in shape
+    flux:
+        type: GMixND
+        islog: True
+        weights: [ 0.03925043,  0.10653059,  0.10608218,  0.07981511,
+                   0.10465281, 0.05959761,  0.10499553,  0.00863695,
+                   0.15904156,  0.02172823, 0.09587512,  0.11379389]
+
+        means: [[ 6.90805663], [ 5.20548493], [ 4.79417948], [ 5.95063824],
+                [ 5.41479175], [ 6.36149328], [ 4.9900031 ], [ 8.56912578],
+                [ 4.45428501], [ 7.6137693 ], [ 5.64545753], [ 4.64387429] ]
+
+        covars: [[[ 0.84721137]], [[ 0.29467075]], [[ 0.11719403]],
+                 [[ 0.6884431 ]], [[ 0.42829775]], [[ 0.7810043 ]],
+                 [[ 0.1913443 ]], [[ 0.8418903 ]], [[ 0.02059606]],
+                 [[ 0.84866821]], [[ 0.57691899]], [[ 0.07015493]] ]
+
+    ellip:
+        type: GBeta
+        g:
+            type: RandomDistribution
+            function: "x*(1.0 - x**2)**2 * np.exp( -0.5*x**2 / 0.2**2 )"
+            x_min: 0.0
+            x_max: 0.99
+        beta:
+            type: Random
+
+    shear:
+        # maximum possible total shear of 0.08
+        index_key: file_num
+        type: G1G2
+        g1:
+            type: Random
+            min: -0.056
+            max:  0.056
+        g2:
+            type: Random
+            min: -0.056
+            max:  0.056
+
+stamp:
+    # We're not drawing on a normal image, so we need to mock up an image_pos for the wcs to use.
+    image_pos:
+        type: XY
+        x: { type: Random, min: 0, max: 2048 }
+        y: { type: Random, min: 0, max: 2048 }
+
+image:
+    size: 48
+
+    wcs :
+        type : Tan
+        dudx :
+            type: Random
+            min: -0.03
+            max: 0.03
+        dudy :
+            type: Random
+            min: 0.24
+            max: 0.28
+        dvdx :
+            type: Random
+            min: -0.28
+            max: -0.24
+        dvdy :
+            type: Random
+            min: -0.03
+            max: 0.03
+
+        origin : { type: XY, x: 1024., y: 1024 }
+        ra : 19.3 hours
+        dec : -33.1 degrees
+
+    random_seed: 8312
+
+    # results in mode of s/n around 10-15 depending on the galaxy type
+    # chosen
+    noise:
+        type: Gaussian
+        sigma: 0.893
+
+    # Offset is just random within central pixel.
+    offset:
+        type: XY
+        x: { type: Random, min: -0.5, max: 0.5 }
+        y: { type: Random, min: -0.5, max: 0.5 }
+
+output:
+    type: MEDS
+    nobjects: 10000  # nobj per file
+    nstamps_per_object: 1  # For now, single epoch sim.
+
+    dir: 
+        type: FormattedStr
+        format: "%s/%s"
+        items:
+        - *WOMBAT_DIR
+        - *run
+
+    file_name:
+        type: FormattedStr
+        format: "sim-%s-%06d.fits"
+        items:
+        - *run
+        - { type: Sequence, nitems: '@output.nfiles' }
+
+    # Note: This can be changed from the command line as `galsim meds.yaml output.nfiles=10` say.
+    # Likewise for any other parameters in the configuration.  This is often more convenient than
+    # changing the original YAML configuration file.  Especially for temporary modifications.
+    nfiles: 200
+
+    nproc: 10
+
+    # Output truth catalogs with some of the generated values
+    truth:
+        file_name :
+            type: FormattedStr
+            format: "truth-catalog-%s-%06d.fits"
+            items:
+            - *run
+            - { type: Sequence, nitems: '@output.nfiles' }
+        columns:
+            num: obj_num
+            x: stamp.image_pos.x
+            y: stamp.image_pos.y
+
+            dx: image.offset.x
+            dy: image.offset.y
+
+            shear1: gal.shear.g1
+            shear2: gal.shear.g2
+            gal_hlr: gal.half_light_radius
+            gal_flux: gal.flux
+
+            psf_g1: psf.ellip.g1
+            psf_g2: psf.ellip.g2
+            #psf_g1: '$(@psf.ellip).g1'
+            #psf_g2: '$(@psf.ellip).g2'
+            psf_fwhm: psf.fwhm
+
+            dudx: image.wcs.dudx
+            dudy: image.wcs.dudy
+            dvdx: image.wcs.dvdx
+            dvdy: image.wcs.dvdy
+            wcs_dudx: '$wcs.local(image_pos).dudx'
+            wcs_dudy: '$wcs.local(image_pos).dudy'
+            wcs_dvdx: '$wcs.local(image_pos).dvdx'
+            wcs_dvdy: '$wcs.local(image_pos).dvdy'
+            wcs_g1: '$wcs.local(image_pos).getDecomposition()[1].g1'
+            wcs_g2: '$wcs.local(image_pos).getDecomposition()[1].g2'
+            wcs_theta_rad: '$wcs.local(image_pos).getDecomposition()[2].rad()'
+            wcs_scale: '$wcs.local(image_pos).getDecomposition()[0]'
