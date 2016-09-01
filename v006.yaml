@@ -52,6 +52,9 @@ gal:
         means: [[ 0.24320888], [ 0.1249546 ], [ 0.48581222], [ 0.17535828], [ 0.33216468]]
         covars: [[[ 0.01449311]], [[ 0.00784546]], [[ 0.03658037]], [[ 0.01103756]], [[ 0.0151037 ]]]
 
+        # factor to convert from pixels into arcsec
+        factor: 0.263
+
     # matches des in shape
     flux:
         type: GMixND
